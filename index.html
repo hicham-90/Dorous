@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#183b56">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الدروس">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>تتبع سير الدروس</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -369,7 +376,7 @@ button{touch-action:manipulation;user-select:none;-webkit-user-select:none}
 <body>
 <header class="top">
   <div><h1>📚 تتبع سير الدروس</h1><p>الفيزياء والكيمياء • الموسم الدراسي 2026–2027</p></div>
-  <div style="display:flex;gap:8px"><button class="iconbtn" id="cloudBtn" onclick="openCloud()" aria-label="السحابة">☁️</button><button class="iconbtn" onclick="openSettings()" aria-label="الإعدادات">⚙️</button></div>
+  <div style="display:flex;gap:8px"><button class="iconbtn hidden" id="installBtn" onclick="installApp()" aria-label="تثبيت التطبيق" title="تثبيت التطبيق">📲</button><button class="iconbtn" id="cloudBtn" onclick="openCloud()" aria-label="السحابة">☁️</button><button class="iconbtn" onclick="openSettings()" aria-label="الإعدادات">⚙️</button></div>
 </header>
 <main><div id="view"></div></main>
 <button class="scrolltop" id="scrollTop" aria-label="العودة للأعلى" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
@@ -828,6 +835,7 @@ function openSettings(){let m=localStorage.getItem(KEYS.theme)||"auto";
   <label>المظهر</label><div class="seg" style="margin-top:6px">${[["auto","تلقائي"],["light","فاتح"],["dark","داكن"]].map(([k,t])=>`<button class="${m===k?"on":""}" onclick="setTheme('${k}')">${t}</button>`).join("")}</div>
   <label>📆 فترة الموسم الدراسي (تقدم الموسم زمنيًا)</label><div class="two"><label>تاريخ البداية<input id="seasonStart" type="date" value="${esc(seasonStartDate())}"></label><label>تاريخ النهاية<input id="seasonEnd" type="date" value="${esc(seasonEndDate())}"></label></div><div class="small">تُستخدم هاتان القيمتان لحساب نسبة تقدم الموسم زمنيًا، مع استبعاد أيام الأحد والعطل المسجلة.</div><button class="btn primary block" style="margin-top:8px" onclick="saveSeasonDates()">حفظ تاريخي الموسم</button>
   <label>🔀 آخر Période ضمن الدورة الأولى</label><select onchange="saveCycleSplit(this.value)">${[1,2,3,4].map(n=>`<option value="${n}" ${cycleSplit()===n?"selected":""}>Période ${n}</option>`).join("")}</select><div class="small">يُستعمل لنسب الدروس إلى الدورتين في «الجاهزية» الخاصة بالاستحقاقات.</div><label>🎯 الحصة الهدف لكل مستوى</label><div class="two"><label>المستوى الثاني<input id="target2" type="number" min="1" step="1" inputmode="numeric" value="${Number(targetSessions["2"])>0?Number(targetSessions["2"]):''}" placeholder="مثلاً 30"></label><label>المستوى الثالث<input id="target3" type="number" min="1" step="1" inputmode="numeric" value="${Number(targetSessions["3"])>0?Number(targetSessions["3"]):''}" placeholder="مثلاً 30"></label></div><div class="small">تُحسب نسبة التقدم من عدد الحصص المسجلة مقارنة بهذا الهدف، دون اعتبار التواريخ أو العطل.</div><button class="btn primary block" style="margin-top:8px" onclick="saveTargets()">حفظ الحصة الهدف</button>
+  <div id="installRow" class="actions" style="margin-top:14px"><button class="btn primary block" onclick="installApp()">📲 تثبيت التطبيق على الجهاز</button></div>
   <label>النسخ الاحتياطي</label><div class="small">بياناتك محفوظة على هذا الجهاز، وتتزامن مع السحابة عند تسجيل الدخول (زر ☁️). صدّر نسخة احتياطية من حين لآخر.</div>
   <div class="actions"><button class="btn primary" onclick="exportData()">⬇️ تصدير</button><label class="btn" style="margin:0;text-align:center;cursor:pointer">⬆️ استيراد<input type="file" accept=".json,application/json" onchange="importData(this.files[0])"></label></div>
   <div class="actions"><button class="btn danger" onclick="resetAll()">🗑 مسح كل البيانات</button></div>`)}
@@ -905,6 +913,36 @@ function openCloud(){
   if(cUser)openSheet(`<h3>☁️ السحابة</h3><div class="small">الحساب المتصل: ${esc(cUser.email||"Google")}</div><div class="actions"><button class="btn primary" onclick="cPush();closeSheet()">🔄 حفظ الآن</button><button class="btn danger" onclick="cSignOut()">تسجيل الخروج</button></div>`);
   else openSheet(`<h3>☁️ السحابة</h3><div class="small">سجّل الدخول بحساب Google لحفظ بياناتك ومزامنتها بين أجهزتك.</div><div class="actions"><button class="btn primary" onclick="cSignIn()">الدخول بـ Google</button></div>`)}
 initCloud();
+</script>
+<script>
+/* ===== PWA: تثبيت التطبيق ===== */
+let deferredInstall=null;
+const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+function refreshInstallBtn(){
+  const b=document.getElementById("installBtn");if(!b)return;
+  const show=!isStandalone()&&(deferredInstall||isIOS());
+  b.classList.toggle("hidden",!show);
+}
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e;refreshInstallBtn()});
+window.addEventListener("appinstalled",()=>{deferredInstall=null;refreshInstallBtn();toast("✅ تم تثبيت التطبيق")});
+async function installApp(){
+  if(isStandalone())return toast("التطبيق مثبّت بالفعل ✓");
+  if(deferredInstall){
+    deferredInstall.prompt();
+    try{await deferredInstall.userChoice}catch(e){}
+    deferredInstall=null;refreshInstallBtn();return;
+  }
+  if(isIOS())return openSheet(`<h3>📲 تثبيت التطبيق</h3><div class="small" style="line-height:2">1) افتح الموقع في <b>Safari</b>.<br>2) اضغط على زر المشاركة <b>⬆️</b>.<br>3) اختر <b>«إضافة إلى الشاشة الرئيسية»</b>.<br>4) اضغط <b>«إضافة»</b>.</div>`);
+  openSheet(`<h3>📲 تثبيت التطبيق</h3><div class="small" style="line-height:2">افتح قائمة المتصفح <b>⋮</b> ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.</div>`);
+}
+(function(){
+  if(isStandalone()){const r=document.getElementById("installRow");if(r)r.remove()}
+  refreshInstallBtn();
+  if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol)){
+    window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(console.error));
+  }
+})();
 </script>
 </body>
 </html>
